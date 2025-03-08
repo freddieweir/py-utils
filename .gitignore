@@ -1,0 +1,5 @@
+.DS_Store
+
+# Exclude specific venv directory and any directory starting with venv
+venv/
+venv*/
