@@ -1,5 +1,24 @@
 .DS_Store
+*.txt
+*.csv
+*.json
+*.jsonl
+*.jsonl.gz
+*.jsonl.gz.part
+*.jsonl.gz.part.1
+*.jsonl.gz.part.2
+*.mp3
+*.mp4
+*.m4a
+*.m4b
+*.m4p
+*.m4b
+*.m4p
+*.m4b
+*.m4p
 
 # Exclude specific venv directory and any directory starting with venv
 venv/
 venv*/
+downloaded_docs/
+__pycache__/

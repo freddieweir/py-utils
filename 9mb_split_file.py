@@ -6,52 +6,39 @@ import sys
 import shutil
 from pathlib import Path
 
-# Define the venv directory
-VENV_DIR = Path(__file__).parent / "venv_split_file"
-REQUIRED_PACKAGES = ["moviepy==1.0.3"]
-
-def is_package_installed(package_name):
-    """Check if a package is installed in the venv."""
+# Import the VirtualEnvironment classes from module_venv
+try:
+    # Try to import assuming script is run from the py-utils directory
+    from module_venv import VirtualEnvironment, AutoVirtualEnvironment
+except ImportError:
+    # Try to import using relative path if script is run from a different directory
     try:
-        python_executable = str(VENV_DIR / ("Scripts" if platform.system() == "Windows" else "bin") / "python")
-        subprocess.run(
-            [python_executable, "-c", f"import {package_name.split('==')[0]}"],
-            check=True,
-            capture_output=True,
-        )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
+        import importlib.util
+        
+        # Get the directory of the current script
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Construct the path to module_venv.py
+        module_path = os.path.join(current_dir, "module_venv.py")
+        
+        if not os.path.exists(module_path):
+            raise FileNotFoundError(f"Cannot find module_venv.py at {module_path}")
+        
+        # Load the module
+        spec = importlib.util.spec_from_file_location("module_venv", module_path)
+        module_venv = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module_venv)
+        
+        # Get the VirtualEnvironment classes
+        VirtualEnvironment = module_venv.VirtualEnvironment
+        AutoVirtualEnvironment = module_venv.AutoVirtualEnvironment
+    except Exception as e:
+        print(f"Error importing VirtualEnvironment classes: {e}")
+        print("Please make sure module_venv.py is in the same directory as this script.")
+        sys.exit(1)
 
-def setup_venv():
-    """Set up the virtual environment and install required packages."""
-    print("Setting up virtual environment...")
-    
-    # Create the venv if it doesn't exist
-    if not VENV_DIR.exists():
-        python_executable = sys.executable
-        subprocess.run([python_executable, "-m", "venv", str(VENV_DIR)], check=True)
-    
-    # Install required packages
-    pip_executable = str(VENV_DIR / ("Scripts" if platform.system() == "Windows" else "bin") / "pip")
-    for package in REQUIRED_PACKAGES:
-        print(f"Installing {package}...")
-        subprocess.run(
-            [pip_executable, "install", package],
-            check=True
-        )
-
-def activate_venv():
-    """Ensure the venv is set up and return the path to its Python executable."""
-    if not VENV_DIR.exists() or not all(is_package_installed(pkg) for pkg in REQUIRED_PACKAGES):
-        setup_venv()
-    
-    return str(VENV_DIR / ("Scripts" if platform.system() == "Windows" else "bin") / "python")
-
-def run_in_venv():
-    """Re-run the current script in the virtual environment."""
-    python_executable = activate_venv()
-    os.execv(python_executable, [python_executable, __file__] + sys.argv[1:])
+# Define the required packages
+REQUIRED_PACKAGES = ["moviepy==1.0.3"]
 
 def extract_audio(file_path):
     """Extract audio from video files."""
@@ -116,10 +103,21 @@ def main():
     """Main function to handle file selection and splitting."""
     global output_dir
     
-    # Check if running in the venv
-    if not any("venv_split_file" in arg for arg in sys.path):
-        run_in_venv()
-        return
+    # Get the home directory for venv path
+    home_dir = str(Path.home())
+    
+    # Create venv name for this specific script
+    venv_name = os.path.join(home_dir, "venv", "split_file_venv")
+    
+    # Setup auto virtual environment with required packages
+    auto_venv = AutoVirtualEnvironment(custom_name=venv_name, auto_packages=REQUIRED_PACKAGES)
+    
+    # Try to switch to the virtual environment with required packages
+    # This will create it if it doesn't exist and re-execute the script
+    auto_venv.auto_switch()
+    
+    # If we reach here, we should be in the virtual environment
+    print(f"Using Python interpreter: {sys.executable}")
     
     # Get the list of files in the current directory, ignoring .DS_Store
     files = [f for f in os.listdir('.') if os.path.isfile(f) and not f.startswith('.DS_Store') and not f.startswith('.')]
