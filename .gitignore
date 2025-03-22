@@ -22,3 +22,6 @@ venv/
 venv*/
 downloaded_docs/
 __pycache__/
+
+# Environment variables
+.env
