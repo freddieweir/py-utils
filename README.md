@@ -13,6 +13,8 @@ Various Python utility scripts.
 - **9mb_split_file.py** - Splits large files (including audio extraction from videos) into smaller chunks.
 - **batch_image_url.py** - Downloads all images from a specified website URL.
 - **doc_links.py** - Downloads documentation or other linked documents from a website using wget.
+- **ssl_setup.py** - Generates self-signed SSL certificates and provides SSLContext for HTTPS.
+- **run_https_server.py** - Launches a simple HTTPS server with auto-generated SSL certificates.
 
 ## Detailed Documentation
 
