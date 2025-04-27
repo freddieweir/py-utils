@@ -25,3 +25,7 @@ __pycache__/
 
 # Environment variables
 .env
+
+# Custom script directories
+uncommited_scripts/
+env_sec/
