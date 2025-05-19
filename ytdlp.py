@@ -141,15 +141,12 @@ def main():
         start_time = input("   ⏩ Start at (leave blank for beginning): ").strip()
         end_time = input("   ⏹️ End at (leave blank for end): ").strip()
         
-        # Validate and build download_sections string if needed
-        download_sections = None
+        # Validate and build trimming options if needed
+        trimming = bool(start_time or end_time)
         downloader = None
         downloader_args = None
-        if start_time or end_time:
-            # yt-dlp expects download-sections as "*start-end" (e.g. "*30-60" or "*00:01:00-00:02:00")
-            section = f"*{start_time if start_time else ''}-{end_time if end_time else ''}"
-            download_sections = section
-            print(f"\nTrimming enabled: {section}")
+        if trimming:
+            print(f"\nTrimming enabled: {start_time or 'start'} to {end_time or 'end'}")
             # Use ffmpeg downloader with -ss and -to for more reliable trimming
             downloader = 'ffmpeg'
             ffmpeg_args = []
@@ -158,7 +155,6 @@ def main():
             if end_time:
                 ffmpeg_args.append(f"-to {end_time}")
             if ffmpeg_args:
-                # ffmpeg_i: is the correct prefix for yt-dlp's --downloader-args
                 downloader_args = { 'ffmpeg_i': ' '.join(ffmpeg_args) }
         else:
             print("\nNo trimming. Downloading full video/audio.")
@@ -176,51 +172,47 @@ def main():
             
             # Set up yt-dlp options based on download type
             if is_audio_only:
-                # Audio-only options
                 print("Audio-only mode selected. Will download as MP3.")
                 archive_path = os.path.join(output_dir, 'downloaded_audio.txt')
                 ydl_opts = {
-                    'format': 'bestaudio/best',
+                    'format': 'bestaudio[ext=m4a]/bestaudio/best' if trimming else 'bestaudio/best',
                     'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
                         'preferredquality': '192',
                     }, {
-                        'key': 'FFmpegMetadata'  # Add metadata to the audio file
+                        'key': 'FFmpegMetadata'
                     }],
                     'no_overwrites': True,
                     'ignoreerrors': True,
                     'verbose': True,
-                    'download_archive': archive_path  # Separate audio archive
+                    'download_archive': archive_path
                 }
             else:
-                # Video options
                 print("Video mode selected. Will download as MP4.")
                 archive_path = os.path.join(output_dir, 'downloaded_video.txt')
                 ydl_opts = {
-                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # Prefer MP4 format
+                    'format': 'best[ext=mp4]/best' if trimming else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                     'merge_output_format': 'mp4',
-                    'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),  # Set output template to save in Downloads folder
+                    'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
                     'embed_subs': True,
                     'writethumbnail': True,
                     'postprocessors': [
-                        {'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'},  # Force MP4 conversion
-                        {'key': 'EmbedThumbnail'},  # Embed thumbnail in the video file
-                        {'key': 'FFmpegMetadata'},  # Add metadata to the video file
+                        {'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'},
+                        {'key': 'EmbedThumbnail'},
+                        {'key': 'FFmpegMetadata'},
                     ],
                     'no_overwrites': True,
                     'ignoreerrors': True,
-                    'verbose': True,  # Add verbose logging to see what's happening
-                    'download_archive': archive_path  # Separate video archive
+                    'verbose': True,
+                    'download_archive': archive_path
                 }
-            # Add trimming if specified
-            if download_sections:
-                ydl_opts['download_sections'] = download_sections
-            if downloader:
+            # Only add trimming options if trimming is requested
+            if trimming:
                 ydl_opts['downloader'] = downloader
-            if downloader_args:
-                ydl_opts['downloader_args'] = downloader_args
+                if downloader_args:
+                    ydl_opts['downloader_args'] = downloader_args
 
             # Check if the URL is already in the archive
             already_downloaded = False
