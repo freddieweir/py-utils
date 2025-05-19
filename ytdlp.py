@@ -255,7 +255,7 @@ def main():
                     if not output_file or not os.path.exists(output_file):
                         print(f"❌ Could not find the downloaded file to trim! Please check your downloads folder. (File: {output_file})")
                     else:
-                        print(f"\n✂️ Trimming {output_file}...")
+                        print(f"\n✂️ Trimming {output_file} with QuickTime-compatible encoding...")
                         ffmpeg_cmd = [
                             "ffmpeg", "-y", "-i", output_file
                         ]
@@ -267,11 +267,15 @@ def main():
                             else:
                                 duration_sec = end_sec
                             ffmpeg_cmd += ["-t", str(duration_sec)]
-                        ffmpeg_cmd += ["-c", "copy", trimmed_file]
+                        if is_audio_only:
+                            ffmpeg_cmd += ["-c:a", "aac"]
+                        else:
+                            ffmpeg_cmd += ["-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart"]
+                        ffmpeg_cmd += [trimmed_file]
                         print(f"Running: {' '.join([f'\"{arg}\"' if ' ' in str(arg) else str(arg) for arg in ffmpeg_cmd])}")
                         try:
                             subprocess.run(ffmpeg_cmd, check=True)
-                            print(f"\n🎉 Trimmed file saved as: {trimmed_file}")
+                            print(f"\n🎉 Trimmed file saved as: {trimmed_file}\n✅ This file should be compatible with QuickTime Player!")
                         except Exception as e:
                             print(f"❌ Error trimming file: {e}")
                 else:
