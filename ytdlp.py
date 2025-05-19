@@ -268,9 +268,14 @@ def main():
                                 duration_sec = end_sec
                             ffmpeg_cmd += ["-t", str(duration_sec)]
                         if is_audio_only:
-                            ffmpeg_cmd += ["-c:a", "aac"]
+                            ffmpeg_cmd += ["-c:a", "aac", "-ar", "44100", "-profile:a", "aac_low"]
                         else:
-                            ffmpeg_cmd += ["-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart"]
+                            ffmpeg_cmd += [
+                                "-map", "0:v:0?", "-map", "0:a:0?",
+                                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                                "-c:a", "aac", "-ar", "44100", "-profile:a", "aac_low",
+                                "-movflags", "+faststart"
+                            ]
                         ffmpeg_cmd += [trimmed_file]
                         print(f"Running: {' '.join([f'\"{arg}\"' if ' ' in str(arg) else str(arg) for arg in ffmpeg_cmd])}")
                         try:
