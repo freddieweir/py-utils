@@ -143,11 +143,23 @@ def main():
         
         # Validate and build download_sections string if needed
         download_sections = None
+        downloader = None
+        downloader_args = None
         if start_time or end_time:
             # yt-dlp expects download-sections as "*start-end" (e.g. "*30-60" or "*00:01:00-00:02:00")
             section = f"*{start_time if start_time else ''}-{end_time if end_time else ''}"
             download_sections = section
             print(f"\nTrimming enabled: {section}")
+            # Use ffmpeg downloader with -ss and -to for more reliable trimming
+            downloader = 'ffmpeg'
+            ffmpeg_args = []
+            if start_time:
+                ffmpeg_args.append(f"-ss {start_time}")
+            if end_time:
+                ffmpeg_args.append(f"-to {end_time}")
+            if ffmpeg_args:
+                # ffmpeg_i: is the correct prefix for yt-dlp's --downloader-args
+                downloader_args = { 'ffmpeg_i': ' '.join(ffmpeg_args) }
         else:
             print("\nNo trimming. Downloading full video/audio.")
         
@@ -205,6 +217,10 @@ def main():
             # Add trimming if specified
             if download_sections:
                 ydl_opts['download_sections'] = download_sections
+            if downloader:
+                ydl_opts['downloader'] = downloader
+            if downloader_args:
+                ydl_opts['downloader_args'] = downloader_args
 
             # Check if the URL is already in the archive
             already_downloaded = False
