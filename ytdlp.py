@@ -69,7 +69,6 @@ def get_download_dir():
 
 # Main script
 def main():
-    import os  # Defensive import in case script is re-executed
     # Get the home directory for venv path
     home_dir = str(Path.home())
     
@@ -133,32 +132,6 @@ def main():
             continue
             
         print(f"Found {len(urls)} URL(s) to process")
-
-        # Prompt for trimming options (applies to all URLs in this batch)
-        print("\n✨ Optional: Trim your download! ✂️✨")
-        print("   You can specify start and end times to trim the video/audio.")
-        print("   Format: seconds (e.g. 30) or HH:MM:SS (e.g. 00:01:30)")
-        print("   Leave blank to download the full video/audio.")
-        start_time = input("   ⏩ Start at (leave blank for beginning): ").strip()
-        end_time = input("   ⏹️ End at (leave blank for end): ").strip()
-        
-        # Validate and build trimming options if needed
-        trimming = bool(start_time or end_time)
-        downloader = None
-        downloader_args = None
-        if trimming:
-            print(f"\nTrimming enabled: {start_time or 'start'} to {end_time or 'end'}")
-            # Use ffmpeg downloader with -ss and -to for more reliable trimming
-            downloader = 'ffmpeg'
-            ffmpeg_args = []
-            if start_time:
-                ffmpeg_args.append(f"-ss {start_time}")
-            if end_time:
-                ffmpeg_args.append(f"-to {end_time}")
-            if ffmpeg_args:
-                downloader_args = { 'ffmpeg_i': ' '.join(ffmpeg_args) }
-        else:
-            print("\nNo trimming. Downloading full video/audio.")
         
         # Process each URL
         for index, url in enumerate(urls):
@@ -173,71 +146,40 @@ def main():
             
             # Set up yt-dlp options based on download type
             if is_audio_only:
+                # Audio-only options
                 print("Audio-only mode selected. Will download as MP3.")
-                archive_path = os.path.join(output_dir, 'downloaded_audio.txt')
                 ydl_opts = {
-                    'format': 'bestaudio[ext=m4a]/bestaudio/best' if trimming else 'bestaudio/best',
+                    'format': 'bestaudio/best',
                     'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
                         'preferredquality': '192',
                     }, {
-                        'key': 'FFmpegMetadata'
+                        'key': 'FFmpegMetadata'  # Add metadata to the audio file
                     }],
                     'no_overwrites': True,
                     'ignoreerrors': True,
-                    'verbose': True,
-                    'download_archive': archive_path
+                    'verbose': True
                 }
             else:
+                # Video options
                 print("Video mode selected. Will download as MP4.")
-                archive_path = os.path.join(output_dir, 'downloaded_video.txt')
                 ydl_opts = {
-                    'format': 'best[ext=mp4]/best' if trimming else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # Prefer MP4 format
                     'merge_output_format': 'mp4',
-                    'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
+                    'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),  # Set output template to save in Downloads folder
                     'embed_subs': True,
                     'writethumbnail': True,
                     'postprocessors': [
-                        {'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'},
-                        {'key': 'EmbedThumbnail'},
-                        {'key': 'FFmpegMetadata'},
+                        {'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'},  # Force MP4 conversion
+                        {'key': 'EmbedThumbnail'},  # Embed thumbnail in the video file
+                        {'key': 'FFmpegMetadata'},  # Add metadata to the video file
                     ],
                     'no_overwrites': True,
                     'ignoreerrors': True,
-                    'verbose': True,
-                    'download_archive': archive_path
+                    'verbose': True
                 }
-            # Only add trimming options if trimming is requested
-            if trimming:
-                ydl_opts['downloader'] = downloader
-                if downloader_args:
-                    ydl_opts['downloader_args'] = downloader_args
-
-            # Check if the URL is already in the archive
-            already_downloaded = False
-            if os.path.exists(archive_path):
-                with open(archive_path, 'r') as archive_file:
-                    for line in archive_file:
-                        if url in line:
-                            already_downloaded = True
-                            break
-            if already_downloaded:
-                print(f"\n⚠️ This URL appears to have already been downloaded according to the archive.")
-                force_redownload = input("   Proceed anyway? (y/N): ").strip().lower()
-                if force_redownload == 'y':
-                    # Remove the entry from the archive so yt-dlp will re-download
-                    with open(archive_path, 'r') as archive_file:
-                        lines = archive_file.readlines()
-                    with open(archive_path, 'w') as archive_file:
-                        for line in lines:
-                            if url not in line:
-                                archive_file.write(line)
-                    print("   Proceeding with re-download...")
-                else:
-                    print("   Skipping download for this URL.")
-                    continue
             
             # Run yt-dlp with the specified options
             try:
@@ -255,48 +197,69 @@ def main():
                     # Now download the video
                     print("\nStarting download...")
                     ydl.download([url])
-                    # Get the output filename
-                    outtmpl = ydl_opts['outtmpl']
-                    ext = 'mp3' if is_audio_only else 'mp4'
-                    # yt-dlp replaces invalid filename chars, so use info dict
-                    base_title = info.get('title', 'output')
-                    # Remove any invalid filename chars
-                    import re
-                    safe_title = re.sub(r'[\\/:*?"<>|]', '', base_title)
-                    output_file = os.path.join(output_dir, f"{safe_title}.{ext}")
                 
-                if trimming:
-                    print(f"\n✨ Trimming file with ffmpeg: {start_time or 'start'} to {end_time or 'end'} ✨")
-                    trimmed_file = os.path.join(output_dir, f"{safe_title}_trimmed.{ext}")
-                    ffmpeg_cmd = [
-                        'ffmpeg', '-y',
-                        '-i', output_file
-                    ]
-                    if start_time:
-                        ffmpeg_cmd += ['-ss', str(start_time)]
-                    if end_time:
-                        ffmpeg_cmd += ['-to', str(end_time)]
-                    ffmpeg_cmd += ['-c', 'copy', trimmed_file]
-                    print(f"Running: {' '.join(ffmpeg_cmd)}")
-                    import subprocess
-                    result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
-                    if result.returncode == 0:
-                        print(f"\n🎉 Trimmed file saved as: {trimmed_file}")
-                        # Ask if user wants to replace original
-                        replace = input("Replace original file with trimmed version? (y/N): ").strip().lower()
-                        if replace == 'y':
-                            import os
-                            os.replace(trimmed_file, output_file)
-                            print(f"Original file replaced with trimmed version: {output_file}")
-                        else:
-                            print(f"Trimmed file kept as: {trimmed_file}")
+                # Determine output file name
+                title = info.get('title', 'output')
+                ext = 'mp3' if is_audio_only else 'mp4'
+                output_file = os.path.join(output_dir, f"{title}.{ext}")
+                trimmed_file = os.path.join(output_dir, f"{title}_trimmed.{ext}")
+                duration = info.get('duration', None)
+                
+                # Prompt for trim times (after download)
+                if duration:
+                    if duration >= 3600:
+                        time_format = 'HH:MM:SS'
                     else:
-                        print(f"❌ ffmpeg trimming failed! Output:\n{result.stderr}")
+                        time_format = 'MM:SS'
                 else:
-                    if is_audio_only:
-                        print(f"\nAudio downloaded successfully! MP3 file saved to {output_dir}")
-                    else:
-                        print(f"\nVideo downloaded successfully! MP4 file saved to {output_dir}")
+                    time_format = 'MM:SS'
+                print("\n✨ Optional: Trim your download! ✨")
+                print(f"Enter start and end times in {time_format} format (leave blank for full length). Example: 00:30 for 30 seconds, 01:15:00 for 1 hour 15 min.")
+                trim_start = input("⏩ Start at (leave blank for start): ").strip()
+                trim_end = input("⏹️ End at (leave blank for end): ").strip()
+                
+                def parse_time(t):
+                    if not t:
+                        return None
+                    parts = t.split(":")
+                    try:
+                        if len(parts) == 3:
+                            h, m, s = map(int, parts)
+                            return h*3600 + m*60 + s
+                        elif len(parts) == 2:
+                            m, s = map(int, parts)
+                            return m*60 + s
+                        elif len(parts) == 1:
+                            return int(parts[0])
+                    except Exception:
+                        return None
+                    return None
+                
+                start_sec = parse_time(trim_start)
+                end_sec = parse_time(trim_end)
+                
+                if start_sec is not None or end_sec is not None:
+                    print(f"\n✂️ Trimming {output_file}...")
+                    ffmpeg_cmd = [
+                        "ffmpeg", "-y", "-i", output_file
+                    ]
+                    if start_sec is not None:
+                        ffmpeg_cmd += ["-ss", str(start_sec)]
+                    if end_sec is not None:
+                        if start_sec is not None:
+                            duration_sec = end_sec - start_sec
+                        else:
+                            duration_sec = end_sec
+                        ffmpeg_cmd += ["-t", str(duration_sec)]
+                    ffmpeg_cmd += ["-c", "copy", trimmed_file]
+                    print(f"Running: {' '.join(ffmpeg_cmd)}")
+                    try:
+                        subprocess.run(ffmpeg_cmd, check=True)
+                        print(f"\n🎉 Trimmed file saved as: {trimmed_file}")
+                    except Exception as e:
+                        print(f"❌ Error trimming file: {e}")
+                else:
+                    print("No trimming selected. Keeping full download.")
             except yt_dlp.utils.DownloadError as e:
                 print(f"\nError downloading video: {e}")
                 if "members-only content" in str(e).lower() or "private video" in str(e).lower() or "This video is only available to members" in str(e):
