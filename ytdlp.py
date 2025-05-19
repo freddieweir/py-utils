@@ -254,11 +254,48 @@ def main():
                     # Now download the video
                     print("\nStarting download...")
                     ydl.download([url])
-                    
-                if is_audio_only:
-                    print(f"\nAudio downloaded successfully! MP3 file saved to {output_dir}")
+                    # Get the output filename
+                    outtmpl = ydl_opts['outtmpl']
+                    ext = 'mp3' if is_audio_only else 'mp4'
+                    # yt-dlp replaces invalid filename chars, so use info dict
+                    base_title = info.get('title', 'output')
+                    # Remove any invalid filename chars
+                    import re
+                    safe_title = re.sub(r'[\\/:*?"<>|]', '', base_title)
+                    output_file = os.path.join(output_dir, f"{safe_title}.{ext}")
+                
+                if trimming:
+                    print(f"\n✨ Trimming file with ffmpeg: {start_time or 'start'} to {end_time or 'end'} ✨")
+                    trimmed_file = os.path.join(output_dir, f"{safe_title}_trimmed.{ext}")
+                    ffmpeg_cmd = [
+                        'ffmpeg', '-y',
+                        '-i', output_file
+                    ]
+                    if start_time:
+                        ffmpeg_cmd += ['-ss', str(start_time)]
+                    if end_time:
+                        ffmpeg_cmd += ['-to', str(end_time)]
+                    ffmpeg_cmd += ['-c', 'copy', trimmed_file]
+                    print(f"Running: {' '.join(ffmpeg_cmd)}")
+                    import subprocess
+                    result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+                    if result.returncode == 0:
+                        print(f"\n🎉 Trimmed file saved as: {trimmed_file}")
+                        # Ask if user wants to replace original
+                        replace = input("Replace original file with trimmed version? (y/N): ").strip().lower()
+                        if replace == 'y':
+                            import os
+                            os.replace(trimmed_file, output_file)
+                            print(f"Original file replaced with trimmed version: {output_file}")
+                        else:
+                            print(f"Trimmed file kept as: {trimmed_file}")
+                    else:
+                        print(f"❌ ffmpeg trimming failed! Output:\n{result.stderr}")
                 else:
-                    print(f"\nVideo downloaded successfully! MP4 file saved to {output_dir}")
+                    if is_audio_only:
+                        print(f"\nAudio downloaded successfully! MP3 file saved to {output_dir}")
+                    else:
+                        print(f"\nVideo downloaded successfully! MP4 file saved to {output_dir}")
             except yt_dlp.utils.DownloadError as e:
                 print(f"\nError downloading video: {e}")
                 if "members-only content" in str(e).lower() or "private video" in str(e).lower() or "This video is only available to members" in str(e):
