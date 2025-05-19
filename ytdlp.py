@@ -257,7 +257,7 @@ def main():
                     else:
                         print(f"\n✂️ Trimming {output_file} with QuickTime-compatible encoding...")
                         ffmpeg_cmd = [
-                            "ffmpeg", "-y", "-i", output_file
+                            "ffmpeg", "-y", "-fflags", "+genpts", "-i", output_file
                         ]
                         if start_sec is not None:
                             ffmpeg_cmd += ["-ss", str(start_sec)]
@@ -268,13 +268,13 @@ def main():
                                 duration_sec = end_sec
                             ffmpeg_cmd += ["-t", str(duration_sec)]
                         if is_audio_only:
-                            ffmpeg_cmd += ["-c:a", "aac", "-ar", "44100", "-profile:a", "aac_low"]
+                            ffmpeg_cmd += ["-c:a", "aac", "-ar", "44100", "-profile:a", "aac_low", "-strict", "-2"]
                         else:
                             ffmpeg_cmd += [
                                 "-map", "0:v:0?", "-map", "0:a:0?",
-                                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
                                 "-c:a", "aac", "-ar", "44100", "-profile:a", "aac_low",
-                                "-movflags", "+faststart"
+                                "-movflags", "+faststart", "-strict", "-2"
                             ]
                         ffmpeg_cmd += [trimmed_file]
                         print(f"Running: {' '.join([f'\"{arg}\"' if ' ' in str(arg) else str(arg) for arg in ffmpeg_cmd])}")
