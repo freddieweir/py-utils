@@ -26,6 +26,21 @@ __pycache__/
 # Environment variables
 .env
 
+<<<<<<< Updated upstream
 # Custom script directories
 uncommited_scripts/
 env_sec/
+=======
+# Prevent any media files in overlay_app/samples/ from being committed
+overlay_app/samples/*.mp4
+overlay_app/samples/*.mov
+overlay_app/samples/*.mkv
+overlay_app/samples/*.avi
+overlay_app/samples/*.webm
+overlay_app/samples/*.flv
+overlay_app/samples/*.wmv
+overlay_app/samples/*.mp3
+overlay_app/samples/*.wav
+overlay_app/samples/*.aac
+overlay_app/samples/*.ogg
+>>>>>>> Stashed changes

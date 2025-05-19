@@ -160,8 +160,7 @@ def main():
                     }],
                     'no_overwrites': True,
                     'ignoreerrors': True,
-                    'verbose': True,
-                    'download_archive': os.path.join(output_dir, 'downloaded_audio.txt')  # Separate audio archive
+                    'verbose': True
                 }
             else:
                 # Video options
@@ -179,8 +178,7 @@ def main():
                     ],
                     'no_overwrites': True,
                     'ignoreerrors': True,
-                    'verbose': True,  # Add verbose logging to see what's happening
-                    'download_archive': os.path.join(output_dir, 'downloaded_video.txt')  # Separate video archive
+                    'verbose': True
                 }
             
             # Run yt-dlp with the specified options
@@ -199,11 +197,94 @@ def main():
                     # Now download the video
                     print("\nStarting download...")
                     ydl.download([url])
-                    
-                if is_audio_only:
-                    print(f"\nAudio downloaded successfully! MP3 file saved to {output_dir}")
+                
+                # Try to get the actual output file path
+                output_file = None
+                ext = 'mp3' if is_audio_only else 'mp4'
+                # Try yt-dlp info dict for output file path
+                if 'requested_downloads' in info and info['requested_downloads']:
+                    output_file = info['requested_downloads'][0].get('filepath')
+                elif 'filepath' in info:
+                    output_file = info['filepath']
+                # Fallback: search for the most recent file in output_dir with the right extension
+                if not output_file or not os.path.exists(output_file):
+                    import glob
+                    files = glob.glob(os.path.join(output_dir, f"*.{ext}"))
+                    if files:
+                        output_file = max(files, key=os.path.getmtime)
+                trimmed_file = None
+                if output_file:
+                    base, extn = os.path.splitext(output_file)
+                    trimmed_file = f"{base}_trimmed{extn}"
+                duration = info.get('duration', None)
+                
+                # Prompt for trim times (after download)
+                if duration:
+                    if duration >= 3600:
+                        time_format = 'HH:MM:SS'
+                    else:
+                        time_format = 'MM:SS'
                 else:
-                    print(f"\nVideo downloaded successfully! MP4 file saved to {output_dir}")
+                    time_format = 'MM:SS'
+                print("\n✨ Optional: Trim your download! ✨")
+                print(f"Enter start and end times in {time_format} format (leave blank for full length). Example: 00:30 for 30 seconds, 01:15:00 for 1 hour 15 min.")
+                trim_start = input("⏩ Start at (leave blank for start): ").strip()
+                trim_end = input("⏹️ End at (leave blank for end): ").strip()
+                
+                def parse_time(t):
+                    if not t:
+                        return None
+                    parts = t.split(":")
+                    try:
+                        if len(parts) == 3:
+                            h, m, s = map(int, parts)
+                            return h*3600 + m*60 + s
+                        elif len(parts) == 2:
+                            m, s = map(int, parts)
+                            return m*60 + s
+                        elif len(parts) == 1:
+                            return int(parts[0])
+                    except Exception:
+                        return None
+                    return None
+                
+                start_sec = parse_time(trim_start)
+                end_sec = parse_time(trim_end)
+                
+                if (start_sec is not None or end_sec is not None):
+                    if not output_file or not os.path.exists(output_file):
+                        print(f"❌ Could not find the downloaded file to trim! Please check your downloads folder. (File: {output_file})")
+                    else:
+                        print(f"\n✂️ Trimming {output_file} with QuickTime-compatible encoding...")
+                        ffmpeg_cmd = [
+                            "ffmpeg", "-y", "-fflags", "+genpts", "-i", output_file
+                        ]
+                        if start_sec is not None:
+                            ffmpeg_cmd += ["-ss", str(start_sec)]
+                        if end_sec is not None:
+                            if start_sec is not None:
+                                duration_sec = end_sec - start_sec
+                            else:
+                                duration_sec = end_sec
+                            ffmpeg_cmd += ["-t", str(duration_sec)]
+                        if is_audio_only:
+                            ffmpeg_cmd += ["-c:a", "aac", "-ar", "44100", "-profile:a", "aac_low", "-strict", "-2"]
+                        else:
+                            ffmpeg_cmd += [
+                                "-map", "0:v:0?", "-map", "0:a:0?",
+                                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
+                                "-c:a", "aac", "-ar", "44100", "-profile:a", "aac_low",
+                                "-movflags", "+faststart", "-strict", "-2"
+                            ]
+                        ffmpeg_cmd += [trimmed_file]
+                        print(f"Running: {' '.join([f'\"{arg}\"' if ' ' in str(arg) else str(arg) for arg in ffmpeg_cmd])}")
+                        try:
+                            subprocess.run(ffmpeg_cmd, check=True)
+                            print(f"\n🎉 Trimmed file saved as: {trimmed_file}\n✅ This file should be compatible with QuickTime Player!")
+                        except Exception as e:
+                            print(f"❌ Error trimming file: {e}")
+                else:
+                    print("No trimming selected. Keeping full download.")
             except yt_dlp.utils.DownloadError as e:
                 print(f"\nError downloading video: {e}")
                 if "members-only content" in str(e).lower() or "private video" in str(e).lower() or "This video is only available to members" in str(e):
