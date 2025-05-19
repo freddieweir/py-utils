@@ -166,6 +166,7 @@ def main():
             if is_audio_only:
                 # Audio-only options
                 print("Audio-only mode selected. Will download as MP3.")
+                archive_path = os.path.join(output_dir, 'downloaded_audio.txt')
                 ydl_opts = {
                     'format': 'bestaudio/best',
                     'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
@@ -179,11 +180,12 @@ def main():
                     'no_overwrites': True,
                     'ignoreerrors': True,
                     'verbose': True,
-                    'download_archive': os.path.join(output_dir, 'downloaded_audio.txt')  # Separate audio archive
+                    'download_archive': archive_path  # Separate audio archive
                 }
             else:
                 # Video options
                 print("Video mode selected. Will download as MP4.")
+                archive_path = os.path.join(output_dir, 'downloaded_video.txt')
                 ydl_opts = {
                     'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # Prefer MP4 format
                     'merge_output_format': 'mp4',
@@ -198,11 +200,35 @@ def main():
                     'no_overwrites': True,
                     'ignoreerrors': True,
                     'verbose': True,  # Add verbose logging to see what's happening
-                    'download_archive': os.path.join(output_dir, 'downloaded_video.txt')  # Separate video archive
+                    'download_archive': archive_path  # Separate video archive
                 }
             # Add trimming if specified
             if download_sections:
                 ydl_opts['download_sections'] = download_sections
+
+            # Check if the URL is already in the archive
+            already_downloaded = False
+            if os.path.exists(archive_path):
+                with open(archive_path, 'r') as archive_file:
+                    for line in archive_file:
+                        if url in line:
+                            already_downloaded = True
+                            break
+            if already_downloaded:
+                print(f"\n⚠️ This URL appears to have already been downloaded according to the archive.")
+                force_redownload = input("   Proceed anyway? (y/N): ").strip().lower()
+                if force_redownload == 'y':
+                    # Remove the entry from the archive so yt-dlp will re-download
+                    with open(archive_path, 'r') as archive_file:
+                        lines = archive_file.readlines()
+                    with open(archive_path, 'w') as archive_file:
+                        for line in lines:
+                            if url not in line:
+                                archive_file.write(line)
+                    print("   Proceeding with re-download...")
+                else:
+                    print("   Skipping download for this URL.")
+                    continue
             
             # Run yt-dlp with the specified options
             try:
