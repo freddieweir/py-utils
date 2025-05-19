@@ -69,6 +69,7 @@ def get_download_dir():
 
 # Main script
 def main():
+    import os  # Defensive import in case script is re-executed
     # Get the home directory for venv path
     home_dir = str(Path.home())
     
