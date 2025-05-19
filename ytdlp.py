@@ -198,11 +198,24 @@ def main():
                     print("\nStarting download...")
                     ydl.download([url])
                 
-                # Determine output file name
-                title = info.get('title', 'output')
+                # Try to get the actual output file path
+                output_file = None
                 ext = 'mp3' if is_audio_only else 'mp4'
-                output_file = os.path.join(output_dir, f"{title}.{ext}")
-                trimmed_file = os.path.join(output_dir, f"{title}_trimmed.{ext}")
+                # Try yt-dlp info dict for output file path
+                if 'requested_downloads' in info and info['requested_downloads']:
+                    output_file = info['requested_downloads'][0].get('filepath')
+                elif 'filepath' in info:
+                    output_file = info['filepath']
+                # Fallback: search for the most recent file in output_dir with the right extension
+                if not output_file or not os.path.exists(output_file):
+                    import glob
+                    files = glob.glob(os.path.join(output_dir, f"*.{ext}"))
+                    if files:
+                        output_file = max(files, key=os.path.getmtime)
+                trimmed_file = None
+                if output_file:
+                    base, extn = os.path.splitext(output_file)
+                    trimmed_file = f"{base}_trimmed{extn}"
                 duration = info.get('duration', None)
                 
                 # Prompt for trim times (after download)
@@ -238,26 +251,29 @@ def main():
                 start_sec = parse_time(trim_start)
                 end_sec = parse_time(trim_end)
                 
-                if start_sec is not None or end_sec is not None:
-                    print(f"\n✂️ Trimming {output_file}...")
-                    ffmpeg_cmd = [
-                        "ffmpeg", "-y", "-i", output_file
-                    ]
-                    if start_sec is not None:
-                        ffmpeg_cmd += ["-ss", str(start_sec)]
-                    if end_sec is not None:
+                if (start_sec is not None or end_sec is not None):
+                    if not output_file or not os.path.exists(output_file):
+                        print(f"❌ Could not find the downloaded file to trim! Please check your downloads folder. (File: {output_file})")
+                    else:
+                        print(f"\n✂️ Trimming {output_file}...")
+                        ffmpeg_cmd = [
+                            "ffmpeg", "-y", "-i", output_file
+                        ]
                         if start_sec is not None:
-                            duration_sec = end_sec - start_sec
-                        else:
-                            duration_sec = end_sec
-                        ffmpeg_cmd += ["-t", str(duration_sec)]
-                    ffmpeg_cmd += ["-c", "copy", trimmed_file]
-                    print(f"Running: {' '.join(ffmpeg_cmd)}")
-                    try:
-                        subprocess.run(ffmpeg_cmd, check=True)
-                        print(f"\n🎉 Trimmed file saved as: {trimmed_file}")
-                    except Exception as e:
-                        print(f"❌ Error trimming file: {e}")
+                            ffmpeg_cmd += ["-ss", str(start_sec)]
+                        if end_sec is not None:
+                            if start_sec is not None:
+                                duration_sec = end_sec - start_sec
+                            else:
+                                duration_sec = end_sec
+                            ffmpeg_cmd += ["-t", str(duration_sec)]
+                        ffmpeg_cmd += ["-c", "copy", trimmed_file]
+                        print(f"Running: {' '.join([f'\"{arg}\"' if ' ' in str(arg) else str(arg) for arg in ffmpeg_cmd])}")
+                        try:
+                            subprocess.run(ffmpeg_cmd, check=True)
+                            print(f"\n🎉 Trimmed file saved as: {trimmed_file}")
+                        except Exception as e:
+                            print(f"❌ Error trimming file: {e}")
                 else:
                     print("No trimming selected. Keeping full download.")
             except yt_dlp.utils.DownloadError as e:
