@@ -132,6 +132,24 @@ def main():
             continue
             
         print(f"Found {len(urls)} URL(s) to process")
+
+        # Prompt for trimming options (applies to all URLs in this batch)
+        print("\n✨ Optional: Trim your download! ✂️✨")
+        print("   You can specify start and end times to trim the video/audio.")
+        print("   Format: seconds (e.g. 30) or HH:MM:SS (e.g. 00:01:30)")
+        print("   Leave blank to download the full video/audio.")
+        start_time = input("   ⏩ Start at (leave blank for beginning): ").strip()
+        end_time = input("   ⏹️ End at (leave blank for end): ").strip()
+        
+        # Validate and build download_sections string if needed
+        download_sections = None
+        if start_time or end_time:
+            # yt-dlp expects download-sections as "*start-end" (e.g. "*30-60" or "*00:01:00-00:02:00")
+            section = f"*{start_time if start_time else ''}-{end_time if end_time else ''}"
+            download_sections = section
+            print(f"\nTrimming enabled: {section}")
+        else:
+            print("\nNo trimming. Downloading full video/audio.")
         
         # Process each URL
         for index, url in enumerate(urls):
@@ -182,6 +200,9 @@ def main():
                     'verbose': True,  # Add verbose logging to see what's happening
                     'download_archive': os.path.join(output_dir, 'downloaded_video.txt')  # Separate video archive
                 }
+            # Add trimming if specified
+            if download_sections:
+                ydl_opts['download_sections'] = download_sections
             
             # Run yt-dlp with the specified options
             try:
